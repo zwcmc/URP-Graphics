@@ -1,0 +1,4 @@
+﻿#ifndef #HLSLCLASSNAME#_INCLUDED
+#define #HLSLCLASSNAME#_INCLUDED
+
+#endif
