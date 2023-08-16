@@ -8,27 +8,32 @@ public class SeparableSSSRenderPassFeature : ScriptableRendererFeature
 {
     class SeparableSSSRenderPass : ScriptableRenderPass
     {
-        ProfilingSampler m_ProfilingSampler = new ProfilingSampler("Separable Subsurface Scattering Pass");
+        ProfilingSampler m_SeparableSSSProfilingSampler = new ProfilingSampler("Separable Subsurface Scattering Pass");
+        ProfilingSampler m_SpecularProfilingSampler = new ProfilingSampler("Skin Specular Pass");
+        private ProfilingSampler m_AddSpecularOnlyProfilingSampler = new ProfilingSampler("Add Specular Only Pass");
 
         SeparableSSS m_SeparableSSS;
         Material m_Material;
         RTHandle m_CameraColorTarget;
         RTHandle m_CameraDepthTarget;
         RTHandle m_TempTarget;
-        private RTHandle m_SpecularTarget;
+        RTHandle m_SpecularTarget;
+
+        Material m_AddSpecularOnlyMaterial;
 
         static readonly int _ColorTexId = Shader.PropertyToID("_ColorTex");
         static readonly int _SpecularTexId = Shader.PropertyToID("_SpecularTex");
         static readonly int _KernelId = Shader.PropertyToID("_Kernel");
         static readonly int _SssWidthId = Shader.PropertyToID("_SssWidth");
         static readonly int _BlurDirId = Shader.PropertyToID("_BlurDir");
-        static readonly int _AddSpecularId = Shader.PropertyToID("_AddSpecular");
+        static readonly int _FinalAddSpecularId = Shader.PropertyToID("_FinalAddSpecular");
         const int SSSS_N_SAMPLES = 17;
         Vector4[] m_Kernel = new Vector4[SSSS_N_SAMPLES];
 
-        public SeparableSSSRenderPass(Material material)
+        public SeparableSSSRenderPass(Material material, Material addSpecularOnlyMaterial)
         {
             m_Material = material;
+            m_AddSpecularOnlyMaterial = addSpecularOnlyMaterial;
         }
 
         public void Setup(RTHandle colorHandle, RTHandle depthHandle)
@@ -60,24 +65,90 @@ public class SeparableSSSRenderPassFeature : ScriptableRendererFeature
             var cameraData = renderingData.cameraData;
             if (cameraData.camera.cameraType != CameraType.Game) return;
 
-            if (m_Material == null) return;
+            if (m_Material == null || m_AddSpecularOnlyMaterial == null) return;
 
-            CommandBuffer cmd = CommandBufferPool.Get(name: "Separable Subsurface Scattering");
-
+            CommandBuffer cmd = CommandBufferPool.Get();
             // Render Separable SSS Specular
+            RenderSkinSpecular(cmd, context, ref renderingData);
+
+            if (m_SeparableSSS.IsActive())
+            {
+                // Render Separable SSS
+                using (new ProfilingScope(cmd, m_SeparableSSSProfilingSampler))
+                {
+                    RenderingUtils.ReAllocateIfNeeded(ref m_TempTarget, m_CameraColorTarget.rt.descriptor, FilterMode.Bilinear, TextureWrapMode.Clamp, name: "_TempTarget");
+
+                    float sssWidth = 0.025f * m_SeparableSSS.sSSWidth.value;
+                    bool followSurface = m_SeparableSSS.followSurface.value;
+                    Vector3 strength = new Vector3(m_SeparableSSS.strength.value.r, m_SeparableSSS.strength.value.g, m_SeparableSSS.strength.value.b);
+                    Vector3 falloff = new Vector3(m_SeparableSSS.falloff.value.r, m_SeparableSSS.falloff.value.g, m_SeparableSSS.falloff.value.b);
+
+                    CalculateKernel(strength, falloff);
+                    cmd.SetGlobalFloat(_SssWidthId, sssWidth);
+
+                    if (followSurface)
+                        m_Material.EnableKeyword("_SSSS_FOLLOW_SURFACE");
+                    else
+                        m_Material.DisableKeyword("_SSSS_FOLLOW_SURFACE");
+
+                    cmd.SetGlobalTexture(_ColorTexId, m_CameraColorTarget.nameID);
+                    cmd.SetGlobalVector(_BlurDirId, new Vector4(1.0f, 0.0f, 0.0f, 0.0f));
+                    cmd.SetGlobalFloat(_FinalAddSpecularId, 0.0f);
+                    CoreUtils.SetRenderTarget(cmd,
+                        m_TempTarget, RenderBufferLoadAction.DontCare, RenderBufferStoreAction.Store,
+                        m_CameraDepthTarget, RenderBufferLoadAction.DontCare, RenderBufferStoreAction.Store,
+                        ClearFlag.None, Color.clear); // implicit depth=1.0f stencil=0x0
+                    Blitter.BlitTexture(cmd, m_CameraColorTarget, Vector2.one, m_Material, 0);
+
+                    cmd.SetGlobalTexture(_ColorTexId, m_TempTarget.nameID);
+                    cmd.SetGlobalVector(_BlurDirId, new Vector4(0.0f, 1.0f, 0.0f, 0.0f));
+                    cmd.SetGlobalTexture(_SpecularTexId, m_SpecularTarget.nameID);
+                    cmd.SetGlobalFloat(_FinalAddSpecularId, 1.0f);
+                    CoreUtils.SetRenderTarget(cmd,
+                        m_CameraColorTarget, RenderBufferLoadAction.DontCare, RenderBufferStoreAction.Store,
+                        m_CameraDepthTarget, RenderBufferLoadAction.DontCare, RenderBufferStoreAction.Store,
+                        ClearFlag.None, Color.clear); // implicit depth=1.0f stencil=0x0
+                    Blitter.BlitTexture(cmd, m_TempTarget, Vector2.one, m_Material, 0);
+                }
+            }
+            else
+            {
+                using (new ProfilingScope(cmd, m_AddSpecularOnlyProfilingSampler))
+                {
+                    RenderingUtils.ReAllocateIfNeeded(ref m_TempTarget, m_CameraColorTarget.rt.descriptor, FilterMode.Bilinear, TextureWrapMode.Clamp, name: "_TempTarget");
+                    CoreUtils.SetRenderTarget(cmd,
+                        m_TempTarget, RenderBufferLoadAction.DontCare, RenderBufferStoreAction.Store,
+                        m_CameraDepthTarget, RenderBufferLoadAction.DontCare, RenderBufferStoreAction.Store,
+                        ClearFlag.None, Color.clear); // implicit depth=1.0f stencil=0x0
+                    Blitter.BlitCameraTexture(cmd, m_CameraColorTarget, m_TempTarget);
+
+                    cmd.SetGlobalTexture(_SpecularTexId, m_SpecularTarget.nameID);
+                    cmd.SetGlobalTexture(_ColorTexId, m_TempTarget.nameID);
+                    CoreUtils.SetRenderTarget(cmd,
+                        m_CameraColorTarget, RenderBufferLoadAction.DontCare, RenderBufferStoreAction.Store,
+                        m_CameraDepthTarget, RenderBufferLoadAction.DontCare, RenderBufferStoreAction.Store,
+                        ClearFlag.None, Color.clear); // implicit depth=1.0f stencil=0x0
+                    Blitter.BlitTexture(cmd, m_CameraColorTarget, Vector2.one, m_AddSpecularOnlyMaterial, 0);
+                }
+            }
+
             context.ExecuteCommandBuffer(cmd);
             cmd.Clear();
 
-            using (new ProfilingScope(cmd, m_ProfilingSampler))
+            CommandBufferPool.Release(cmd);
+        }
+
+        void RenderSkinSpecular(CommandBuffer cmd, ScriptableRenderContext context, ref RenderingData renderingData)
+        {
+            using (new ProfilingScope(cmd, m_SpecularProfilingSampler))
             {
                 RenderingUtils.ReAllocateIfNeeded(ref m_SpecularTarget, m_CameraColorTarget.rt.descriptor,
                     FilterMode.Bilinear, TextureWrapMode.Clamp, name: "_SpecularTarget");
-
                 CoreUtils.SetRenderTarget(cmd, m_SpecularTarget, RenderBufferLoadAction.DontCare, RenderBufferStoreAction.Store,
                     m_CameraDepthTarget, RenderBufferLoadAction.DontCare, RenderBufferStoreAction.Store);
-
                 context.ExecuteCommandBuffer(cmd);
                 cmd.Clear();
+
                 List<ShaderTagId> shaderTagIdList = new List<ShaderTagId>();
                 shaderTagIdList.Add(new ShaderTagId("SeparableSSSSkinSpecularPass"));
                 var sortFlags = renderingData.cameraData.defaultOpaqueSortFlags;
@@ -86,52 +157,7 @@ public class SeparableSSSRenderPassFeature : ScriptableRendererFeature
                 RenderStateBlock renderStateBlock = new RenderStateBlock(RenderStateMask.Depth);
                 renderStateBlock.depthState = new DepthState(true, CompareFunction.LessEqual);
                 context.DrawRenderers(renderingData.cullResults, ref drawSettings, ref filteringSettings, ref renderStateBlock);
-                context.ExecuteCommandBuffer(cmd);
-                cmd.Clear();
-
-
-
-
-                // Render Separable SSS
-                RenderingUtils.ReAllocateIfNeeded(ref m_TempTarget, m_CameraColorTarget.rt.descriptor, FilterMode.Bilinear, TextureWrapMode.Clamp, name: "_TempTarget");
-
-                float sssWidth = 0.025f * m_SeparableSSS.sSSWidth.value;
-                bool followSurface = m_SeparableSSS.followSurface.value;
-                Vector3 strength = new Vector3(m_SeparableSSS.strength.value.r, m_SeparableSSS.strength.value.g, m_SeparableSSS.strength.value.b);
-                Vector3 falloff = new Vector3(m_SeparableSSS.falloff.value.r, m_SeparableSSS.falloff.value.g, m_SeparableSSS.falloff.value.b);
-
-                CalculateKernel(strength, falloff);
-                cmd.SetGlobalFloat(_SssWidthId, sssWidth);
-
-                if (followSurface)
-                    m_Material.EnableKeyword("_SSSS_FOLLOW_SURFACE");
-                else
-                    m_Material.DisableKeyword("_SSSS_FOLLOW_SURFACE");
-
-                cmd.SetGlobalTexture(_ColorTexId, m_CameraColorTarget.nameID);
-                cmd.SetGlobalVector(_BlurDirId, new Vector4(1.0f, 0.0f, 0.0f, 0.0f));
-                cmd.SetGlobalFloat(_AddSpecularId, 0.0f);
-                CoreUtils.SetRenderTarget(cmd,
-                    m_TempTarget, RenderBufferLoadAction.DontCare, RenderBufferStoreAction.Store,
-                    m_CameraDepthTarget, RenderBufferLoadAction.DontCare, RenderBufferStoreAction.Store,
-                    ClearFlag.None, Color.clear); // implicit depth=1.0f stencil=0x0
-                Blitter.BlitTexture(cmd, m_CameraColorTarget, Vector2.one, m_Material, 0);
-
-                cmd.SetGlobalTexture(_ColorTexId, m_TempTarget.nameID);
-                cmd.SetGlobalVector(_BlurDirId, new Vector4(0.0f, 1.0f, 0.0f, 0.0f));
-                cmd.SetGlobalTexture(_SpecularTexId, m_SpecularTarget.nameID);
-                cmd.SetGlobalFloat(_AddSpecularId, 1.0f);
-                CoreUtils.SetRenderTarget(cmd,
-                    m_CameraColorTarget, RenderBufferLoadAction.DontCare, RenderBufferStoreAction.Store,
-                    m_CameraDepthTarget, RenderBufferLoadAction.DontCare, RenderBufferStoreAction.Store,
-                    ClearFlag.None, Color.clear); // implicit depth=1.0f stencil=0x0
-                Blitter.BlitTexture(cmd, m_TempTarget, Vector2.one, m_Material, 0);
             }
-
-            context.ExecuteCommandBuffer(cmd);
-            cmd.Clear();
-
-            CommandBufferPool.Release(cmd);
         }
 
         // Cleanup any allocated resources that were created during the execution of this render pass.
@@ -248,24 +274,21 @@ public class SeparableSSSRenderPassFeature : ScriptableRendererFeature
         }
     }
 
-    // [Range(0.0f, 1.0f)]
-    // public float m_SSSWidth = 0.0f;
-    // public bool m_FollowSurface = false;
-    // public Color m_Strength = new Color(0.48f, 0.41f, 0.28f);
-    // public Color m_Falloff = new Color(1.0f, 0.37f, 0.3f);
 
     public Shader m_Shader;
-
+    public Shader m_AddSpecularOnlyShader;
     Material m_Material;
+    Material m_AddSpecularOnlyMaterial;
     SeparableSSSRenderPass m_ScriptablePass;
 
     /// <inheritdoc/>
     public override void Create()
     {
         m_Material = CoreUtils.CreateEngineMaterial(m_Shader);
+        m_AddSpecularOnlyMaterial = CoreUtils.CreateEngineMaterial(m_AddSpecularOnlyShader);
 
         // float sssLevel = 0.025f * m_SSSWidth;
-        m_ScriptablePass = new SeparableSSSRenderPass(m_Material);
+        m_ScriptablePass = new SeparableSSSRenderPass(m_Material, m_AddSpecularOnlyMaterial);
 
         // Configures where the render pass should be injected.
         m_ScriptablePass.renderPassEvent = RenderPassEvent.AfterRenderingTransparents;
@@ -273,17 +296,15 @@ public class SeparableSSSRenderPassFeature : ScriptableRendererFeature
 
     public override void SetupRenderPasses(ScriptableRenderer renderer, in RenderingData renderingData)
     {
-        if (renderingData.cameraData.cameraType == CameraType.Game)
-        {
+        if (renderingData.cameraData.cameraType == CameraType.Game && m_Shader != null && m_Material != null && m_AddSpecularOnlyShader != null && m_AddSpecularOnlyMaterial != null)
             m_ScriptablePass.Setup(renderer.cameraColorTargetHandle, renderer.cameraDepthTargetHandle);
-        }
     }
 
     // Here you can inject one or multiple render passes in the renderer.
     // This method is called when setting up the renderer once per-camera.
     public override void AddRenderPasses(ScriptableRenderer renderer, ref RenderingData renderingData)
     {
-        if (renderingData.cameraData.cameraType == CameraType.Game && m_Shader != null && m_Material != null)
+        if (renderingData.cameraData.cameraType == CameraType.Game && m_Shader != null && m_Material != null && m_AddSpecularOnlyShader != null && m_AddSpecularOnlyMaterial != null)
             renderer.EnqueuePass(m_ScriptablePass);
     }
 

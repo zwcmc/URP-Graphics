@@ -75,3 +75,5 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   m_Active: 1
   m_Shader: {fileID: 4800000, guid: 8ce5cb8d1ec6cfe49a4d11500e5df46b, type: 3}
+  m_AddSpecularOnlyShader: {fileID: 4800000, guid: 2013f058dd3e3884b9d147853f7787f4,
+    type: 3}

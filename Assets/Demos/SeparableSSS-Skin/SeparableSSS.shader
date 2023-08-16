@@ -26,10 +26,10 @@ Shader "Hidden/URP Graphics/Post-processing/SeparableSSS"
             #pragma multi_compile_local_fragment _ _SSSS_FOLLOW_SURFACE
 
             #pragma vertex Vert
-            #pragma fragment frag
+            #pragma fragment FragSeparableSSS
 
             TEXTURE2D_X(_ColorTex);                      SAMPLER(sampler_ColorTex);
-            TEXTURE2D(_SpecularTex);                     SAMPLER(sampler_SpecularTex);
+            TEXTURE2D_X(_SpecularTex);                     SAMPLER(sampler_SpecularTex);
             TEXTURE2D_X_FLOAT(_CameraDepthTexture);      SAMPLER(sampler_CameraDepthTexture);
 
             #define SSSS_N_SAMPLES 17
@@ -39,9 +39,9 @@ Shader "Hidden/URP Graphics/Post-processing/SeparableSSS"
             float4 _Kernel[SSSS_N_SAMPLES];
             float4 _BlurDir;
 
-            float _AddSpecular;
+            float _FinalAddSpecular;
 
-            void frag(Varyings input, out half4 outColor : SV_Target)
+            void FragSeparableSSS(Varyings input, out half4 outColor : SV_Target)
             {
                 UNITY_SETUP_STEREO_EYE_INDEX_POST_VERTEX(input);
 
@@ -74,7 +74,7 @@ Shader "Hidden/URP Graphics/Post-processing/SeparableSSS"
                     float2 offset = input.texcoord + _Kernel[i].a * finalStep;
                     float4 color = SAMPLE_TEXTURE2D_X(_ColorTex, sampler_ColorTex, offset);
 
-                    #if defined(_SSSS_FOLLOW_SURFACE)
+                    #ifdef _SSSS_FOLLOW_SURFACE
                         // If the difference in depth is huge, we lerp color back to "colorM":
                         float depth = LinearEyeDepth(SAMPLE_TEXTURE2D_X(_CameraDepthTexture, sampler_CameraDepthTexture, offset).r, _ZBufferParams);
                         float s = saturate(300.0f * distanceToProjectionWindow * _SssWidth * abs(depthM - depth));
@@ -86,7 +86,7 @@ Shader "Hidden/URP Graphics/Post-processing/SeparableSSS"
                 }
 
                 // Add specular
-                colorBlurred.rgb += _AddSpecular > 0.5 ? SAMPLE_TEXTURE2D_X(_SpecularTex, sampler_SpecularTex, input.texcoord).rgb : 0.0;
+                colorBlurred.rgb += _FinalAddSpecular > 0.5 ? SAMPLE_TEXTURE2D_X(_SpecularTex, sampler_SpecularTex, input.texcoord).rgb : 0.0;
 
                 outColor = colorBlurred;
             }

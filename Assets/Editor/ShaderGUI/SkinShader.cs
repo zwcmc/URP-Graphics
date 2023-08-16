@@ -24,8 +24,8 @@ namespace URPGraphics.ShaderGUI
                 CoreUtils.SetKeyword(material, "_NORMALMAP", material.GetTexture("_BumpMap"));
 
             // Metallic Gloss Map
-            if (material.HasProperty("_MetallicGlossMap"))
-                CoreUtils.SetKeyword(material, "_METALLICSPECGLOSSMAP", material.GetTexture("_MetallicGlossMap"));
+            if (material.HasProperty("_RoughnessMap"))
+                CoreUtils.SetKeyword(material, "_ROUGHNESSMAP", material.GetTexture("_RoughnessMap"));
         }
     }
 }

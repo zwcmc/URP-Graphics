@@ -6,11 +6,13 @@ Shader "URP Graphics/SeparableSSS/Skin"
         [MainColor] _BaseColor("Color", Color) = (1,1,1,1)
 
         _Smoothness("Smoothness", Range(0.0, 1.0)) = 0.5
-        _Metallic("Metallic", Range(0.0, 1.0)) = 0.0
-        _MetallicGlossMap("Metallic", 2D) = "white" {}
+        _RoughnessMap("Roughness", 2D) = "white" {}
 
         _BumpScale("Scale", Float) = 1.0
         _BumpMap("Normal Map", 2D) = "bump" {}
+
+        _Translucency("SSS Transmittance", Range(0.0, 1.0)) = 0.1
+        _SSSWidth("SSS Width", Range(0.0, 1.0)) = 0.0
 
         [IntRange] _StencilReference("Stencil Reference Value", Range(0, 255)) = 0
         [Enum(UnityEngine.Rendering.CompareFunction)] _StencilComparison("Stencil Comparison", Float) = 8
@@ -53,7 +55,7 @@ Shader "URP Graphics/SeparableSSS/Skin"
             #pragma fragment DiffusePassFragment
 
             #pragma shader_feature_local _NORMALMAP
-            #pragma shader_feature_local_fragment _METALLICSPECGLOSSMAP
+            #pragma shader_feature_local_fragment _ROUGHNESSMAP
             #pragma multi_compile _ _MAIN_LIGHT_SHADOWS _MAIN_LIGHT_SHADOWS_CASCADE
             #pragma multi_compile_fragment _ _SHADOWS_SOFT
 
@@ -82,7 +84,7 @@ Shader "URP Graphics/SeparableSSS/Skin"
             #pragma fragment SpecularPassFragment
 
             #pragma shader_feature_local _NORMALMAP
-            #pragma shader_feature_local_fragment _METALLICSPECGLOSSMAP
+            #pragma shader_feature_local_fragment _ROUGHNESSMAP
             #pragma multi_compile _ _MAIN_LIGHT_SHADOWS _MAIN_LIGHT_SHADOWS_CASCADE
             #pragma multi_compile_fragment _ _SHADOWS_SOFT
 

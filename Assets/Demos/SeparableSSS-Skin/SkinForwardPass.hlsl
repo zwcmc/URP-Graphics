@@ -109,9 +109,38 @@ inline void InitializeBRDFData(inout SkinSurfaceData surfaceData, out SkinBRDFDa
     outBRDFData.roughness2MinusOne  = outBRDFData.roughness2 - half(1.0);
 }
 
-half3 SSSSTransmittance()
+half3 SSSSTransmittance(half translucency, half sssWidth, float3 positionWS, half3 normalWS, half3 lightDirectionWS)
 {
-    return half3(0.5, 0.0, 0.0);
+    // Calculate the scale of the effect.
+    float scale = 8.25 * (1.0 - translucency) / sssWidth;
+
+    // First we shrink the position inwards the surface to avoid artifacts: (Note that this can be done once for all the lights)
+    float4 shrinkedPos = float4(positionWS - 0.005 * normalWS, 1.0);
+
+    // Now we calculate the thickness from the light point of view:
+#ifdef _MAIN_LIGHT_SHADOWS_CASCADE
+    half cascadeIndex = ComputeCascadeIndex(positionWS);
+#else
+    half cascadeIndex = half(0.0);
+#endif
+    float4 shadowCoord = mul(_MainLightWorldToShadow[cascadeIndex], shrinkedPos);
+    shadowCoord.xyz /= shadowCoord.w;
+
+    float d1 = SAMPLE_TEXTURE2D_X(_MainLightShadowmapTexture, sampler_LinearClamp, shadowCoord.xy).r;
+    float d2 = shadowCoord.z + 0.001;
+    float d = scale * abs(d1 - d2);
+
+    // Armed with the thickness, we can now calculate the color by means of the precalculated transmittance profile.(It can be precomputed into a texture, for maximum performance):
+    float dd = -d * d;
+    half3 profile = half3(0.233, 0.455, 0.649) * exp(dd / 0.0064) +
+                     half3(0.1, 0.336, 0.344) * exp(dd / 0.0484) +
+                     half3(0.118, 0.198, 0.0)   * exp(dd / 0.187)  +
+                     half3(0.113, 0.007, 0.007) * exp(dd / 0.567)  +
+                     half3(0.358, 0.004, 0.0)   * exp(dd / 1.99)   +
+                     half3(0.078, 0.0,   0.0)   * exp(dd / 7.41);
+
+    // Using the profile, we finally approximate the transmitted lighting from the back of the object:
+    return profile * saturate(0.3 + dot(lightDirectionWS, -normalWS));
 }
 
 half4 SeparableSSSSkinPBR(SkinInputData inputData, SkinSurfaceData surfaceData)
@@ -195,9 +224,13 @@ half4 SeparableSSSSkinPBRDiffuse(SkinInputData inputData, SkinSurfaceData surfac
     half3 mainLightColor = brdf * radiance;
 
     // Transmittance
-    half3 transmittance = 0.0f;  // radiance * SSSSTransmittance();
+    // half sssWidth = 0.025 * _SSSWidth;
+    // half translucency = _Translucency;
+    // float3 positionWS = inputData.positionWS;
+    // half3 trans = SSSSTransmittance(translucency, sssWidth, positionWS, normalWS, lightDirectionWS);
+    // half3 transmittance = lightColor * lightAttenuation * trans;
 
-    return half4(giColor + mainLightColor + transmittance, 1.0);
+    return half4(giColor + mainLightColor, 1.0);
 }
 
 half4 SeparableSSSSkinPBRSpecular(SkinInputData inputData, SkinSurfaceData surfaceData)

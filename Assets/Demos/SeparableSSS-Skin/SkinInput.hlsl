@@ -8,13 +8,18 @@ CBUFFER_START(UnityPerMaterial)
 float4 _BaseMap_ST;
 half4 _BaseColor;
 half _Smoothness;
-half _Metallic;
 half _BumpScale;
+half _Translucency;
+half _SSSWidth;
 CBUFFER_END
 
 TEXTURE2D(_BaseMap);                SAMPLER(sampler_BaseMap);
-TEXTURE2D(_MetallicGlossMap);       SAMPLER(sampler_MetallicGlossMap);
+TEXTURE2D(_RoughnessMap);           SAMPLER(sampler_RoughnessMap);
 TEXTURE2D(_BumpMap);                SAMPLER(sampler_BumpMap);
+
+float _SssWidth;
+float4x4 _LightViewProjection;
+float _LightFarPlane;
 
 struct SkinSurfaceData
 {
@@ -28,13 +33,14 @@ half4 SampleMetallicSpecGloss(float2 uv)
 {
     half4 specGloss;
 
-#ifdef _METALLICSPECGLOSSMAP
-    specGloss = SAMPLE_TEXTURE2D(_MetallicGlossMap, sampler_MetallicGlossMap, uv);
-    specGloss.a *= _Smoothness;
+#ifdef _ROUGHNESSMAP
+    specGloss = SAMPLE_TEXTURE2D(_RoughnessMap, sampler_RoughnessMap, uv);
+    specGloss.a = 1.0 - specGloss.r;
 #else
-    specGloss.rgb = _Metallic.rrr;
     specGloss.a = _Smoothness;
 #endif
+
+    specGloss.rgb = 0.0;
 
     return specGloss;
 }
