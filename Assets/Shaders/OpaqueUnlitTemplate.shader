@@ -1,9 +1,9 @@
-Shader "URP Graphics/OpaqueTemplate"
+Shader "URP Graphics/OpaqueUnlitTemplate"
 {
     Properties
     {
         [MainTexture] _BaseMap("Albedo", 2D) = "white" {}
-        [MainColor] _BaseColor("Color", Color) = (1,1,1,1)
+        [MainColor] _BaseColor("Color", Color) = (0.6, 0.6, 0.6, 1.0)
     }
     SubShader
     {
@@ -11,7 +11,6 @@ Shader "URP Graphics/OpaqueTemplate"
         {
             "RenderType" = "Opaque"
             "RenderPipeline" = "UniversalPipeline"
-            "UniversalMaterialType" = "Lit"
             "IgnoreProjector" = "True"
         }
         LOD 300
