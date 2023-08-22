@@ -115,16 +115,11 @@ half3 SSSSTransmittance(half translucency, half sssWidth, float3 positionWS, hal
     float scale = 8.25 * (1.0 - translucency) / sssWidth;
 
     // First we shrink the position inwards the surface to avoid artifacts: (Note that this can be done once for all the lights)
-    float4 shrinkedPos = float4(positionWS - 0.005 * normalWS, 1.0);
+    float3 shrinkedPos = positionWS - 0.005 * normalWS;
 
     // Now we calculate the thickness from the light point of view:
-#ifdef _MAIN_LIGHT_SHADOWS_CASCADE
-    half cascadeIndex = ComputeCascadeIndex(positionWS);
-#else
-    half cascadeIndex = half(0.0);
-#endif
-    float4 shadowCoord = mul(_MainLightWorldToShadow[cascadeIndex], shrinkedPos);
-    shadowCoord.xyz /= shadowCoord.w;
+    float4 shadowCoord = TransformWorldToShadowCoord(shrinkedPos);
+    shadowCoord.xy /= shadowCoord.w;
 
     float d1 = SAMPLE_TEXTURE2D_X(_MainLightShadowmapTexture, sampler_LinearClamp, shadowCoord.xy).r;
     float d2 = shadowCoord.z + 0.001;
@@ -217,20 +212,16 @@ half4 SeparableSSSSkinPBRDiffuse(SkinInputData inputData, SkinSurfaceData surfac
     // Direct Diffuse
     half3 lightColor = mainLight.color;
     half3 lightDirectionWS = mainLight.direction;
-    half lightAttenuation = mainLight.distanceAttenuation * mainLight.shadowAttenuation;
+    half lightAttenuation = mainLight.distanceAttenuation;
     half NdotL = saturate(dot(normalWS, lightDirectionWS));
     half3 radiance = lightColor * (lightAttenuation * NdotL);
     half3 brdf = brdfData.diffuse;
     half3 mainLightColor = brdf * radiance;
 
     // Transmittance
-    // half sssWidth = 0.025 * _SSSWidth;
-    // half translucency = _Translucency;
-    // float3 positionWS = inputData.positionWS;
-    // half3 trans = SSSSTransmittance(translucency, sssWidth, positionWS, normalWS, lightDirectionWS);
-    // half3 transmittance = lightColor * lightAttenuation * trans;
+    half3 transmittance = lightColor * lightAttenuation * SSSSTransmittance(_Translucency, _SSSWidth, inputData.positionWS, normalWS, lightDirectionWS);
 
-    return half4(giColor + mainLightColor, 1.0);
+    return half4(giColor + mainLightColor + transmittance, 1.0);
 }
 
 half4 SeparableSSSSkinPBRSpecular(SkinInputData inputData, SkinSurfaceData surfaceData)
