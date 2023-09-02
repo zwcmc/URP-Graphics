@@ -1,6 +1,6 @@
 %YAML 1.1
 %TAG !u! tag:unity3d.com,2011:
---- !u!114 &-1670577328823960775
+--- !u!114 &-6871310108604066005
 MonoBehaviour:
   m_ObjectHideFlags: 3
   m_CorrespondingSourceObject: {fileID: 0}
@@ -18,7 +18,7 @@ MonoBehaviour:
     m_Value: 0.338
   followSurface:
     m_OverrideState: 1
-    m_Value: 0
+    m_Value: 1
   strength:
     m_OverrideState: 1
     m_Value: {r: 0.48, g: 0.41, b: 0.28, a: 1}
@@ -38,4 +38,4 @@ MonoBehaviour:
   m_Name: Global Volume Profile
   m_EditorClassIdentifier: 
   components:
-  - {fileID: -1670577328823960775}
+  - {fileID: -6871310108604066005}

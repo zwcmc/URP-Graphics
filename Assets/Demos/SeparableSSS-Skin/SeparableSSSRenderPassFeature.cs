@@ -67,12 +67,12 @@ public class SeparableSSSRenderPassFeature : ScriptableRendererFeature
 
             if (m_Material == null || m_AddSpecularOnlyMaterial == null) return;
 
-            CommandBuffer cmd = CommandBufferPool.Get();
-            // Render Separable SSS Specular
-            RenderSkinSpecular(cmd, context, ref renderingData);
-
             if (m_SeparableSSS.IsActive())
             {
+                CommandBuffer cmd = CommandBufferPool.Get();
+                // Render Separable SSS Specular
+                RenderSkinSpecular(cmd, context, ref renderingData);
+
                 // Render Separable SSS
                 using (new ProfilingScope(cmd, m_SeparableSSSProfilingSampler))
                 {
@@ -95,8 +95,8 @@ public class SeparableSSSRenderPassFeature : ScriptableRendererFeature
                     cmd.SetGlobalVector(_BlurDirId, new Vector4(1.0f, 0.0f, 0.0f, 0.0f));
                     cmd.SetGlobalFloat(_FinalAddSpecularId, 0.0f);
                     CoreUtils.SetRenderTarget(cmd,
-                        m_TempTarget, RenderBufferLoadAction.DontCare, RenderBufferStoreAction.Store,
-                        m_CameraDepthTarget, RenderBufferLoadAction.DontCare, RenderBufferStoreAction.Store,
+                        m_TempTarget, RenderBufferLoadAction.Load, RenderBufferStoreAction.Store,
+                        m_CameraDepthTarget, RenderBufferLoadAction.Load, RenderBufferStoreAction.Store,
                         ClearFlag.None, Color.clear); // implicit depth=1.0f stencil=0x0
                     Blitter.BlitTexture(cmd, m_CameraColorTarget, Vector2.one, m_Material, 0);
 
@@ -105,37 +105,38 @@ public class SeparableSSSRenderPassFeature : ScriptableRendererFeature
                     cmd.SetGlobalTexture(_SpecularTexId, m_SpecularTarget.nameID);
                     cmd.SetGlobalFloat(_FinalAddSpecularId, 1.0f);
                     CoreUtils.SetRenderTarget(cmd,
-                        m_CameraColorTarget, RenderBufferLoadAction.DontCare, RenderBufferStoreAction.Store,
-                        m_CameraDepthTarget, RenderBufferLoadAction.DontCare, RenderBufferStoreAction.Store,
+                        m_CameraColorTarget, RenderBufferLoadAction.Load, RenderBufferStoreAction.Store,
+                        m_CameraDepthTarget, RenderBufferLoadAction.Load, RenderBufferStoreAction.Store,
                         ClearFlag.None, Color.clear); // implicit depth=1.0f stencil=0x0
                     Blitter.BlitTexture(cmd, m_TempTarget, Vector2.one, m_Material, 0);
                 }
+
+
+                context.ExecuteCommandBuffer(cmd);
+                cmd.Clear();
+
+                CommandBufferPool.Release(cmd);
             }
-            else
-            {
-                using (new ProfilingScope(cmd, m_AddSpecularOnlyProfilingSampler))
-                {
-                    RenderingUtils.ReAllocateIfNeeded(ref m_TempTarget, m_CameraColorTarget.rt.descriptor, FilterMode.Bilinear, TextureWrapMode.Clamp, name: "_TempTarget");
-                    CoreUtils.SetRenderTarget(cmd,
-                        m_TempTarget, RenderBufferLoadAction.DontCare, RenderBufferStoreAction.Store,
-                        m_CameraDepthTarget, RenderBufferLoadAction.DontCare, RenderBufferStoreAction.Store,
-                        ClearFlag.None, Color.clear); // implicit depth=1.0f stencil=0x0
-                    Blitter.BlitCameraTexture(cmd, m_CameraColorTarget, m_TempTarget);
-
-                    cmd.SetGlobalTexture(_SpecularTexId, m_SpecularTarget.nameID);
-                    cmd.SetGlobalTexture(_ColorTexId, m_TempTarget.nameID);
-                    CoreUtils.SetRenderTarget(cmd,
-                        m_CameraColorTarget, RenderBufferLoadAction.DontCare, RenderBufferStoreAction.Store,
-                        m_CameraDepthTarget, RenderBufferLoadAction.DontCare, RenderBufferStoreAction.Store,
-                        ClearFlag.None, Color.clear); // implicit depth=1.0f stencil=0x0
-                    Blitter.BlitTexture(cmd, m_CameraColorTarget, Vector2.one, m_AddSpecularOnlyMaterial, 0);
-                }
-            }
-
-            context.ExecuteCommandBuffer(cmd);
-            cmd.Clear();
-
-            CommandBufferPool.Release(cmd);
+            // else
+            // {
+            //     using (new ProfilingScope(cmd, m_AddSpecularOnlyProfilingSampler))
+            //     {
+            //         RenderingUtils.ReAllocateIfNeeded(ref m_TempTarget, m_CameraColorTarget.rt.descriptor, FilterMode.Bilinear, TextureWrapMode.Clamp, name: "_TempTarget");
+            //         CoreUtils.SetRenderTarget(cmd,
+            //             m_TempTarget, RenderBufferLoadAction.Load, RenderBufferStoreAction.Store,
+            //             m_CameraDepthTarget, RenderBufferLoadAction.Load, RenderBufferStoreAction.Store,
+            //             ClearFlag.None, Color.clear); // implicit depth=1.0f stencil=0x0
+            //         Blitter.BlitCameraTexture(cmd, m_CameraColorTarget, m_TempTarget);
+            //
+            //         cmd.SetGlobalTexture(_SpecularTexId, m_SpecularTarget.nameID);
+            //         cmd.SetGlobalTexture(_ColorTexId, m_TempTarget.nameID);
+            //         CoreUtils.SetRenderTarget(cmd,
+            //             m_CameraColorTarget, RenderBufferLoadAction.Load, RenderBufferStoreAction.Store,
+            //             m_CameraDepthTarget, RenderBufferLoadAction.Load, RenderBufferStoreAction.Store,
+            //             ClearFlag.None, Color.clear); // implicit depth=1.0f stencil=0x0
+            //         Blitter.BlitTexture(cmd, m_CameraColorTarget, Vector2.one, m_AddSpecularOnlyMaterial, 0);
+            //     }
+            // }
         }
 
         void RenderSkinSpecular(CommandBuffer cmd, ScriptableRenderContext context, ref RenderingData renderingData)
@@ -144,8 +145,8 @@ public class SeparableSSSRenderPassFeature : ScriptableRendererFeature
             {
                 RenderingUtils.ReAllocateIfNeeded(ref m_SpecularTarget, m_CameraColorTarget.rt.descriptor,
                     FilterMode.Bilinear, TextureWrapMode.Clamp, name: "_SpecularTarget");
-                CoreUtils.SetRenderTarget(cmd, m_SpecularTarget, RenderBufferLoadAction.DontCare, RenderBufferStoreAction.Store,
-                    m_CameraDepthTarget, RenderBufferLoadAction.DontCare, RenderBufferStoreAction.Store);
+                CoreUtils.SetRenderTarget(cmd, m_SpecularTarget, RenderBufferLoadAction.Load, RenderBufferStoreAction.Store,
+                    m_CameraDepthTarget, RenderBufferLoadAction.Load, RenderBufferStoreAction.Store);
                 context.ExecuteCommandBuffer(cmd);
                 cmd.Clear();
 
