@@ -3,7 +3,6 @@ Shader "Hidden/URP Graphics/Post-processing/SeparableSSS"
     SubShader
     {
         Tags { "RenderType"="Opaque" "RenderPipeline" = "UniversalPipeline" }
-        LOD 100
         ZWrite Off Cull Off
 
         Stencil

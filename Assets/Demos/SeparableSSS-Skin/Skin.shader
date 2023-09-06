@@ -27,7 +27,6 @@ Shader "URP Graphics/SeparableSSS/Skin"
             "UniversalMaterialType" = "Lit"
             "IgnoreProjector" = "True"
         }
-        LOD 300
 
         Pass
         {

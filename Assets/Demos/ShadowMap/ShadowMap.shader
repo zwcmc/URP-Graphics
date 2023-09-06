@@ -1,4 +1,4 @@
-Shader "URP Graphics/ShadowMap/BlinnPhongLit"
+Shader "URP Graphics/ShadowMap/ShadowMap"
 {
     Properties
     {
@@ -14,7 +14,6 @@ Shader "URP Graphics/ShadowMap/BlinnPhongLit"
             "RenderPipeline" = "UniversalPipeline"
             "IgnoreProjector" = "True"
         }
-        LOD 300
 
         Pass
         {

@@ -13,7 +13,6 @@ Shader "URP Graphics/TranparentUnlitTemplate"
             "RenderPipeline" = "UniversalPipeline"
             "IgnoreProjector" = "True"
         }
-        LOD 300
 
         Pass
         {

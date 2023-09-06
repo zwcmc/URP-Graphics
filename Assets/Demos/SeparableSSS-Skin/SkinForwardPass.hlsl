@@ -118,8 +118,9 @@ half3 SSSSTransmittance(half translucency, half sssWidth, float3 positionWS, hal
     float3 shrinkedPos = positionWS - 0.005 * normalWS;
 
     // Now we calculate the thickness from the light point of view:
-    float4 shadowCoord = TransformWorldToShadowCoord(shrinkedPos);
-    shadowCoord.xy /= shadowCoord.w;
+    half cascadeIndex = ComputeCascadeIndex(shrinkedPos);
+    float4 shadowCoord = mul(_MainLightWorldToShadow[cascadeIndex], float4(shrinkedPos, 1.0));
+    shadowCoord.xyz /= shadowCoord.w;
 
     float d1 = SAMPLE_TEXTURE2D_X(_MainLightShadowmapTexture, sampler_LinearClamp, shadowCoord.xy).r;
     float d2 = shadowCoord.z + 0.001;
