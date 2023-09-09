@@ -44,7 +44,7 @@ Shader "URP Graphics/ShadowMap/ShadowMap"
             #pragma fragment Frag
 
             #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Lighting.hlsl"
-            #include "ShadowMap.hlsl"
+            #include "ShadowAlgorithms.hlsl"
 
             struct Attributes
             {
@@ -102,7 +102,7 @@ Shader "URP Graphics/ShadowMap/ShadowMap"
                 half cascadeIndex = ComputeCascadeIndex(input.positionWS);
                 float4 shadowCoord = mul(_MainLightWorldToShadow[cascadeIndex], float4(input.positionWS, 1.0));
 
-                half shadowCoeff = half(SampleShadow_Bilinear_PCF(shadowCoord));
+                half shadowCoeff = half(SampleShadow_PCF_Tent_5x5(shadowCoord));
 
                 outColor = half4(giColor + (lightDiffuseColor * albedo + lightSpecularColor) * shadowCoeff, 1.0);
             }
