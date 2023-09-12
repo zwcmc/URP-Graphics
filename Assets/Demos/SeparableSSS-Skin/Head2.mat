@@ -126,7 +126,8 @@ Material:
     - _Parallax: 0.005
     - _QueueOffset: 0
     - _ReceiveShadows: 1
-    - _SSSWidth: 0.338
+    - _SSSWidth: 0.7
+    - _Shrink: 0.175
     - _Smoothness: 1
     - _SmoothnessTextureChannel: 0
     - _SpecularHighlights: 1
@@ -136,7 +137,8 @@ Material:
     - _StencilPass: 2
     - _StencilReference: 16
     - _Surface: 0
-    - _Translucency: 0.893
+    - _Translucency: 0.644
+    - _TranslucencyScale: 8.25
     - _WorkflowMode: 1
     - _ZWrite: 1
     m_Colors:

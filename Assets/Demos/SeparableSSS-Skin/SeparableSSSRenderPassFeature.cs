@@ -6,11 +6,61 @@ using System.Collections.Generic;
 
 public class SeparableSSSRenderPassFeature : ScriptableRendererFeature
 {
-    class SeparableSSSRenderPass : ScriptableRenderPass
+    public Shader m_Shader;
+    public Shader m_AddSpecularOnlyShader;
+    Material m_Material;
+    Material m_AddSpecularOnlyMaterial;
+    SeparableSSSRenderPass m_ScriptablePass;
+
+    /// <inheritdoc/>
+    public override void Create()
+    {
+        m_Material = CoreUtils.CreateEngineMaterial(m_Shader);
+        m_AddSpecularOnlyMaterial = CoreUtils.CreateEngineMaterial(m_AddSpecularOnlyShader);
+
+        m_ScriptablePass = new SeparableSSSRenderPass(m_Material, m_AddSpecularOnlyMaterial);
+
+        // Configures where the render pass should be injected.
+        m_ScriptablePass.renderPassEvent = RenderPassEvent.AfterRenderingTransparents;
+    }
+
+    public override void SetupRenderPasses(ScriptableRenderer renderer, in RenderingData renderingData)
+    {
+        if (renderingData.cameraData.cameraType == CameraType.Game && CheckMaterials())
+        {
+            m_ScriptablePass.Setup(renderer.cameraColorTargetHandle, renderer.cameraDepthTargetHandle);
+        }
+    }
+
+    // Here you can inject one or multiple render passes in the renderer.
+    // This method is called when setting up the renderer once per-camera.
+    public override void AddRenderPasses(ScriptableRenderer renderer, ref RenderingData renderingData)
+    {
+        if (renderingData.cameraData.cameraType == CameraType.Game && CheckMaterials())
+        {
+            renderer.EnqueuePass(m_ScriptablePass);
+        }
+    }
+
+    private bool CheckMaterials()
+    {
+        return m_Material != null && m_AddSpecularOnlyMaterial != null;
+    }
+
+    protected override void Dispose(bool disposing)
+    {
+        // m_ScriptablePass?.Dispose();
+        // m_ScriptablePass = null;
+
+        CoreUtils.Destroy(m_Material);
+        CoreUtils.Destroy(m_AddSpecularOnlyMaterial);
+    }
+
+    private class SeparableSSSRenderPass : ScriptableRenderPass
     {
         ProfilingSampler m_SeparableSSSProfilingSampler = new ProfilingSampler("Separable Subsurface Scattering Pass");
         ProfilingSampler m_SpecularProfilingSampler = new ProfilingSampler("Skin Specular Pass");
-        private ProfilingSampler m_AddSpecularOnlyProfilingSampler = new ProfilingSampler("Add Specular Only Pass");
+        // private ProfilingSampler m_AddSpecularOnlyProfilingSampler = new ProfilingSampler("Add Specular Only Pass");
 
         SeparableSSS m_SeparableSSS;
         Material m_Material;
@@ -273,44 +323,5 @@ public class SeparableSSSRenderPassFeature : ScriptableRendererFeature
             m_TempTarget?.Release();
             m_SpecularTarget?.Release();
         }
-    }
-
-
-    public Shader m_Shader;
-    public Shader m_AddSpecularOnlyShader;
-    Material m_Material;
-    Material m_AddSpecularOnlyMaterial;
-    SeparableSSSRenderPass m_ScriptablePass;
-
-    /// <inheritdoc/>
-    public override void Create()
-    {
-        m_Material = CoreUtils.CreateEngineMaterial(m_Shader);
-        m_AddSpecularOnlyMaterial = CoreUtils.CreateEngineMaterial(m_AddSpecularOnlyShader);
-
-        // float sssLevel = 0.025f * m_SSSWidth;
-        m_ScriptablePass = new SeparableSSSRenderPass(m_Material, m_AddSpecularOnlyMaterial);
-
-        // Configures where the render pass should be injected.
-        m_ScriptablePass.renderPassEvent = RenderPassEvent.AfterRenderingTransparents;
-    }
-
-    public override void SetupRenderPasses(ScriptableRenderer renderer, in RenderingData renderingData)
-    {
-        if (renderingData.cameraData.cameraType == CameraType.Game && m_Shader != null && m_Material != null && m_AddSpecularOnlyShader != null && m_AddSpecularOnlyMaterial != null)
-            m_ScriptablePass.Setup(renderer.cameraColorTargetHandle, renderer.cameraDepthTargetHandle);
-    }
-
-    // Here you can inject one or multiple render passes in the renderer.
-    // This method is called when setting up the renderer once per-camera.
-    public override void AddRenderPasses(ScriptableRenderer renderer, ref RenderingData renderingData)
-    {
-        if (renderingData.cameraData.cameraType == CameraType.Game && m_Shader != null && m_Material != null && m_AddSpecularOnlyShader != null && m_AddSpecularOnlyMaterial != null)
-            renderer.EnqueuePass(m_ScriptablePass);
-    }
-
-    protected override void Dispose(bool disposing)
-    {
-        CoreUtils.Destroy(m_Material);
     }
 }

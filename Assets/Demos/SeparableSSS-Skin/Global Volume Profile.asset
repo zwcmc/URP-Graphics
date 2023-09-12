@@ -15,10 +15,10 @@ MonoBehaviour:
   active: 1
   sSSWidth:
     m_OverrideState: 1
-    m_Value: 0.338
+    m_Value: 0.7
   followSurface:
     m_OverrideState: 1
-    m_Value: 1
+    m_Value: 0
   strength:
     m_OverrideState: 1
     m_Value: {r: 0.48, g: 0.41, b: 0.28, a: 1}

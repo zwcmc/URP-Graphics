@@ -12,6 +12,7 @@ Shader "URP Graphics/SeparableSSS/Skin"
         _BumpMap("Normal Map", 2D) = "bump" {}
 
         _Translucency("SSS Transmittance", Range(0.0, 1.0)) = 0.1
+        _Shrink("Position Shrink", Range(0.02, 0.3)) = 0.02
         _SSSWidth("SSS Width", Range(0.0, 1.0)) = 0.0
 
         [IntRange] _StencilReference("Stencil Reference Value", Range(0, 255)) = 0

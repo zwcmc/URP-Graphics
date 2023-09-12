@@ -109,34 +109,33 @@ inline void InitializeBRDFData(inout SkinSurfaceData surfaceData, out SkinBRDFDa
     outBRDFData.roughness2MinusOne  = outBRDFData.roughness2 - half(1.0);
 }
 
-half3 SSSSTransmittance(half translucency, half sssWidth, float3 positionWS, half3 normalWS, half3 lightDirectionWS)
+half3 SSSSTransmittance(float3 positionWS, half3 normalWS, half3 lightDirectionWS)
 {
     // Calculate the scale of the effect.
-    float scale = 8.25 * (1.0 - translucency) / sssWidth;
+    float scale = 8.25 * (1.0 - _Translucency) / _SSSWidth;
 
     // First we shrink the position inwards the surface to avoid artifacts: (Note that this can be done once for all the lights)
-    float3 shrinkedPos = positionWS - 0.005 * normalWS;
+    float3 shrinkedPos = positionWS - _Shrink * normalWS;
 
     // Now we calculate the thickness from the light point of view:
-    half cascadeIndex = ComputeCascadeIndex(shrinkedPos);
-    float4 shadowCoord = mul(_MainLightWorldToShadow[cascadeIndex], float4(shrinkedPos, 1.0));
-    shadowCoord.xyz /= shadowCoord.w;
+    float4 shadowPosition = mul(_MainLightWorldToShadow[ComputeCascadeIndex(shrinkedPos)], float4(shrinkedPos, 1.0));
 
-    float d1 = SAMPLE_TEXTURE2D_X(_MainLightShadowmapTexture, sampler_LinearClamp, shadowCoord.xy).r;
-    float d2 = shadowCoord.z + 0.001;
+    float d1 = SAMPLE_TEXTURE2D_X_LOD(_MainLightShadowmapTexture, sampler_LinearClamp, shadowPosition.xy, 0).r;
+    float d2 = shadowPosition.z + 0.001;
     float d = scale * abs(d1 - d2);
 
     // Armed with the thickness, we can now calculate the color by means of the precalculated transmittance profile.(It can be precomputed into a texture, for maximum performance):
-    float dd = -d * d;
-    half3 profile = half3(0.233, 0.455, 0.649) * exp(dd / 0.0064) +
-                     half3(0.1, 0.336, 0.344) * exp(dd / 0.0484) +
-                     half3(0.118, 0.198, 0.0)   * exp(dd / 0.187)  +
-                     half3(0.113, 0.007, 0.007) * exp(dd / 0.567)  +
-                     half3(0.358, 0.004, 0.0)   * exp(dd / 1.99)   +
-                     half3(0.078, 0.0,   0.0)   * exp(dd / 7.41);
+    // float dd = -d * d;
+    // half3 profile = saturate(half3(0.233, 0.455, 0.649) * exp(dd / 0.0064) +
+    //                 half3(0.1,   0.336, 0.344) * exp(dd / 0.0484) +
+    //                 half3(0.118, 0.198, 0.0)   * exp(dd / 0.187)  +
+    //                 half3(0.113, 0.007, 0.007) * exp(dd / 0.567)  +
+    //                 half3(0.358, 0.004, 0.0)   * exp(dd / 1.99)   +
+    //                 half3(0.078, 0.0,   0.0)   * exp(dd / 7.41));
+
 
     // Using the profile, we finally approximate the transmitted lighting from the back of the object:
-    return profile * saturate(0.3 + dot(lightDirectionWS, -normalWS));
+    return d * saturate(0.3 + dot(lightDirectionWS, -normalWS));
 }
 
 half4 SeparableSSSSkinPBR(SkinInputData inputData, SkinSurfaceData surfaceData)
@@ -201,9 +200,7 @@ half4 SeparableSSSSkinPBRDiffuse(SkinInputData inputData, SkinSurfaceData surfac
     SkinBRDFData brdfData;
     InitializeBRDFData(surfaceData, brdfData);
 
-    Light mainLight = GetMainLight(inputData.shadowCoord, inputData.positionWS, half4(0.0, 0.0, 0.0, 0.0));
-
-    half3 normalWS = inputData.normalWS;
+    Light mainLight = GetMainLight();
 
     // Environment Diffuse
     half3 indirectDiffuse = inputData.bakedGI;
@@ -211,16 +208,14 @@ half4 SeparableSSSSkinPBRDiffuse(SkinInputData inputData, SkinSurfaceData surfac
     half3 giColor = envDiffuse;
 
     // Direct Diffuse
-    half3 lightColor = mainLight.color;
     half3 lightDirectionWS = mainLight.direction;
     half lightAttenuation = mainLight.distanceAttenuation;
-    half NdotL = saturate(dot(normalWS, lightDirectionWS));
-    half3 radiance = lightColor * (lightAttenuation * NdotL);
-    half3 brdf = brdfData.diffuse;
-    half3 mainLightColor = brdf * radiance;
+    half NdotL = saturate(dot(inputData.normalWS, lightDirectionWS));
+    half3 radiance = mainLight.color * lightAttenuation * NdotL;
+    half3 mainLightColor = brdfData.diffuse * radiance;
 
     // Transmittance
-    half3 transmittance = lightColor * lightAttenuation * SSSSTransmittance(_Translucency, _SSSWidth, inputData.positionWS, normalWS, lightDirectionWS);
+    half3 transmittance = brdfData.diffuse * mainLight.color * lightAttenuation * SSSSTransmittance(inputData.positionWS, inputData.normalWS, lightDirectionWS);
 
     return half4(giColor + mainLightColor + transmittance, 1.0);
 }

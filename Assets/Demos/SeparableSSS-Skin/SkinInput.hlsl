@@ -11,6 +11,7 @@ half _Smoothness;
 half _BumpScale;
 half _Translucency;
 half _SSSWidth;
+half _Shrink;
 CBUFFER_END
 
 TEXTURE2D(_BaseMap);                SAMPLER(sampler_BaseMap);
