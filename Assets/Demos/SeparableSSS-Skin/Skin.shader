@@ -2,6 +2,8 @@ Shader "URP Graphics/SeparableSSS/Skin"
 {
     Properties
     {
+        [Header(Base)]
+        [Space(5)]
         [MainTexture] _BaseMap("Albedo", 2D) = "white" {}
         [MainColor] _BaseColor("Color", Color) = (1,1,1,1)
 
@@ -11,10 +13,16 @@ Shader "URP Graphics/SeparableSSS/Skin"
         _BumpScale("Scale", Float) = 1.0
         _BumpMap("Normal Map", 2D) = "bump" {}
 
+        [Space(10)]
+        [Header(Transmittance)]
+        [Space(5)]
         _Translucency("SSS Transmittance", Range(0.0, 1.0)) = 0.1
         _Shrink("Position Shrink", Range(0.02, 0.3)) = 0.02
         _SSSWidth("SSS Width", Range(0.0, 1.0)) = 0.0
 
+        [Space(10)]
+        [Header(Stencil)]
+        [Space(5)]
         [IntRange] _StencilReference("Stencil Reference Value", Range(0, 255)) = 0
         [Enum(UnityEngine.Rendering.CompareFunction)] _StencilComparison("Stencil Comparison", Float) = 8
         [Enum(UnityEngine.Rendering.StencilOp)] _StencilPass("Stencil Pass", Float) = 0
