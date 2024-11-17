@@ -94,7 +94,7 @@ inline void InitializeBRDFData(inout SkinSurfaceData surfaceData, out SkinBRDFDa
     half oneMinusReflectivity = OneMinusReflectivityMetallic(metallic);
     half reflectivity = half(1.0) - oneMinusReflectivity;
     half3 brdfDiffuse = albedo * oneMinusReflectivity;
-    half3 brdfSpecular = lerp(kDieletricSpec.rgb, albedo, metallic);
+    half3 brdfSpecular = lerp(kDielectricSpec.rgb, albedo, metallic);
 
     outBRDFData.albedo = albedo;
     outBRDFData.diffuse = brdfDiffuse;
